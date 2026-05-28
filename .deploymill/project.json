@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "oauth-explorer",
+  "domains": {
+    "prod": "oauth-explorer-detzel.apps.deploymill.com",
+    "previews": true
+  },
+  "mounts": [],
+  "rollback": false
+}
