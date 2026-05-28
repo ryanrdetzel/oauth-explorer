@@ -1,4 +1,2144 @@
-<!doctype html>
-<title>oauth-explorer</title>
-<h1>oauth-explorer</h1>
-<p>Scaffolded by deploymill. Replace this page with your app.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="An interactive, modern crash course in OAuth 2.0 / 2.1 and OpenID Connect. Animated flows, live PKCE generator, JWT decoder, and a quiz." />
+<title>OAuth Explorer — Learn OAuth, interactively</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   OAuth Explorer — single-file static site
+   ============================================================ */
+
+:root {
+  --bg: #07071a;
+  --bg-2: #0d0d24;
+  --panel: rgba(255, 255, 255, 0.035);
+  --panel-strong: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #ebecff;
+  --muted: #9598c1;
+  --dim: #6b6e96;
+
+  --p1: #a78bfa;       /* purple   */
+  --p2: #f472b6;       /* pink     */
+  --p3: #38bdf8;       /* cyan     */
+  --p4: #4ade80;       /* green    */
+  --p5: #fbbf24;       /* amber    */
+  --p6: #fb7185;       /* coral    */
+
+  --grad: linear-gradient(135deg, var(--p1), var(--p2));
+  --grad-cool: linear-gradient(135deg, var(--p3), var(--p1));
+  --grad-warm: linear-gradient(135deg, var(--p5), var(--p2));
+
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 18px 60px -20px rgba(167, 139, 250, 0.35);
+
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 700px at 80% -10%, rgba(244,114,182,0.18), transparent 60%),
+    radial-gradient(900px 600px at 10% 10%, rgba(167,139,250,0.18), transparent 60%),
+    radial-gradient(800px 600px at 50% 110%, rgba(56,189,248,0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a { color: var(--p3); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Subtle grid noise overlay */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 30%, transparent 70%);
+  z-index: 0;
+}
+
+main, nav { position: relative; z-index: 1; }
+
+/* -----------------------------------------------------------
+   NAV
+   ----------------------------------------------------------- */
+nav.top {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background: rgba(7, 7, 26, 0.65);
+  border-bottom: 1px solid var(--border);
+}
+nav.top .wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding: 14px 24px;
+  display: flex; align-items: center; gap: 24px;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; letter-spacing: -0.01em;
+}
+.brand .dot {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: var(--grad);
+  box-shadow: 0 0 24px rgba(167, 139, 250, 0.6);
+}
+.brand .name { font-size: 15px; }
+.brand .tag { font-size: 11px; color: var(--muted); margin-left: 4px; }
+nav.top .links {
+  display: flex; gap: 6px; margin-left: auto;
+  flex-wrap: wrap;
+}
+nav.top .links a {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all .15s ease;
+}
+nav.top .links a:hover {
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+nav.top .links a.active { color: var(--text); background: var(--panel-strong); }
+
+/* -----------------------------------------------------------
+   GLOBAL LAYOUT
+   ----------------------------------------------------------- */
+.container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+section {
+  padding: 110px 0 50px;
+  scroll-margin-top: 70px;
+}
+section.tight { padding-top: 80px; }
+.eyebrow {
+  display: inline-block;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--p2);
+  padding: 6px 12px;
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-radius: 999px;
+  background: rgba(244, 114, 182, 0.08);
+  margin-bottom: 18px;
+}
+h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 16px; font-weight: 700; }
+h1 { font-size: clamp(40px, 6vw, 72px); font-weight: 800; }
+h2 { font-size: clamp(28px, 3.4vw, 42px); }
+h3 { font-size: 20px; }
+p.lead { font-size: 18px; color: var(--muted); max-width: 700px; }
+
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* -----------------------------------------------------------
+   HERO
+   ----------------------------------------------------------- */
+.hero {
+  padding: 130px 0 90px;
+  text-align: center;
+  position: relative;
+}
+.hero h1 .blink { display: inline-block; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.hero p.lead { margin: 0 auto 32px; }
+.hero .cta {
+  display: inline-flex; gap: 12px; margin-top: 8px;
+  flex-wrap: wrap; justify-content: center;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-weight: 600; font-size: 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  font-family: inherit;
+}
+.btn.primary {
+  background: var(--grad);
+  color: white;
+  box-shadow: 0 12px 30px -10px rgba(244,114,182,0.5);
+}
+.btn.primary:hover { transform: translateY(-1px); box-shadow: 0 18px 40px -12px rgba(244,114,182,0.6); }
+.btn.ghost {
+  background: var(--panel);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.btn.ghost:hover { background: var(--panel-strong); }
+.btn.small { padding: 8px 14px; font-size: 13px; border-radius: 10px; }
+
+.hero .stats {
+  margin-top: 70px;
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.hero .stats .stat {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: left;
+}
+.hero .stats .stat b { font-size: 26px; display: block; margin-bottom: 4px; }
+.hero .stats .stat span { font-size: 13px; color: var(--muted); }
+
+/* Floating orbs in hero */
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(60px); opacity: 0.5;
+  pointer-events: none;
+}
+.orb.o1 { width: 340px; height: 340px; left: -80px; top: 40px; background: var(--p1); animation: float 12s ease-in-out infinite; }
+.orb.o2 { width: 280px; height: 280px; right: -60px; top: 100px; background: var(--p2); animation: float 14s ease-in-out infinite reverse; }
+@keyframes float {
+  0%,100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(40px) translateX(20px); }
+}
+
+/* -----------------------------------------------------------
+   CARDS + GRIDS
+   ----------------------------------------------------------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  transition: border-color .2s ease, transform .2s ease, background .2s ease;
+}
+.card:hover { border-color: var(--border-strong); }
+.card h3 { display: flex; align-items: center; gap: 10px; }
+.card .icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: inline-grid; place-items: center;
+  background: var(--grad);
+  color: white; font-weight: 700;
+  font-size: 13px;
+}
+.grid-2 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.grid-3 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid-4 { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+/* -----------------------------------------------------------
+   WHY OAUTH — before/after panel
+   ----------------------------------------------------------- */
+.beforeafter {
+  display: grid; gap: 18px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  margin-top: 30px;
+}
+.beforeafter .panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+}
+.beforeafter .panel h4 {
+  margin: 0 0 14px; font-size: 13px; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--muted);
+}
+.beforeafter .panel.bad { border-color: rgba(248, 113, 113, 0.3); }
+.beforeafter .panel.bad h4 { color: var(--p6); }
+.beforeafter .panel.good { border-color: rgba(74, 222, 128, 0.3); }
+.beforeafter .panel.good h4 { color: var(--p4); }
+.beforeafter .arrow {
+  display: grid; place-items: center;
+  font-size: 32px;
+  color: var(--muted);
+}
+.beforeafter ul { padding-left: 20px; margin: 0; }
+.beforeafter ul li { margin: 8px 0; }
+@media (max-width: 800px) {
+  .beforeafter { grid-template-columns: 1fr; }
+  .beforeafter .arrow { transform: rotate(90deg); }
+}
+
+/* -----------------------------------------------------------
+   ROLES
+   ----------------------------------------------------------- */
+.roles { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 30px; }
+.role {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  position: relative; overflow: hidden;
+  transition: transform .2s ease, border-color .2s ease;
+  cursor: default;
+}
+.role:hover { transform: translateY(-4px); border-color: var(--border-strong); }
+.role::before {
+  content: ""; position: absolute; inset: 0;
+  background: var(--accent, var(--grad));
+  opacity: 0.07;
+  pointer-events: none;
+}
+.role .label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.role h3 { margin-bottom: 6px; font-size: 18px; }
+.role .alias { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+.role .desc { font-size: 14px; color: var(--text); }
+.role .example { margin-top: 14px; font-size: 12px; color: var(--muted); padding: 10px; background: rgba(0,0,0,0.25); border-radius: 8px; }
+
+/* -----------------------------------------------------------
+   FLOW PICKER (decision tree)
+   ----------------------------------------------------------- */
+.picker {
+  background: var(--panel-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-top: 30px;
+}
+.picker .question { margin-bottom: 20px; }
+.picker .question:last-of-type { margin-bottom: 0; }
+.picker .q-label { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+.picker .q-text { font-size: 18px; margin-bottom: 14px; }
+.picker .choices { display: flex; gap: 10px; flex-wrap: wrap; }
+.picker .choice {
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit; font-size: 14px;
+  transition: all .15s ease;
+}
+.picker .choice:hover { background: var(--panel-strong); border-color: var(--p1); }
+.picker .choice.selected {
+  background: var(--grad);
+  border-color: transparent;
+  color: white;
+}
+.picker .result {
+  margin-top: 22px;
+  padding: 22px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(167,139,250,0.12), rgba(244,114,182,0.08));
+  border: 1px solid rgba(167,139,250,0.35);
+  display: none;
+}
+.picker .result.show { display: block; animation: slideUp .3s ease; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.picker .result h4 { margin: 0 0 8px; font-size: 22px; }
+.picker .result .pill {
+  display: inline-block; padding: 4px 10px;
+  font-size: 12px; font-weight: 600;
+  background: var(--grad);
+  color: white;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+/* -----------------------------------------------------------
+   AUTH CODE FLOW — animated step diagram
+   ----------------------------------------------------------- */
+.flow {
+  margin-top: 30px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+}
+.flow .actors {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.flow .actor {
+  text-align: center; padding: 14px 8px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px; color: var(--muted);
+}
+.flow .actor b { display: block; color: var(--text); margin-bottom: 2px; font-size: 14px; }
+.flow .steps {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.flow .step {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  opacity: 0.6;
+  transition: all .25s ease;
+}
+.flow .step.active {
+  opacity: 1;
+  border-color: var(--p2);
+  background: rgba(244,114,182,0.07);
+  box-shadow: 0 8px 32px -10px rgba(244,114,182,0.4);
+}
+.flow .step .num {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 14px;
+}
+.flow .step.active .num { background: var(--grad); border-color: transparent; color: white; }
+.flow .step h4 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.flow .step p { margin: 0; font-size: 13px; color: var(--muted); }
+.flow .step .meta {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--p3); margin-top: 6px;
+  word-break: break-all;
+}
+.flow .step .arrow {
+  font-family: var(--mono);
+  font-size: 11px; color: var(--muted);
+  white-space: nowrap;
+}
+.flow .controls {
+  display: flex; gap: 10px; margin-top: 20px;
+  align-items: center;
+}
+.flow .progress {
+  flex: 1; height: 6px;
+  background: var(--panel-strong);
+  border-radius: 999px; overflow: hidden;
+}
+.flow .progress .bar {
+  height: 100%;
+  background: var(--grad);
+  width: 0%;
+  transition: width .3s ease;
+}
+.flow .codepeek {
+  margin-top: 18px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #cdd0ff;
+  max-height: 280px; overflow-y: auto;
+}
+.flow .codepeek .k { color: var(--p3); }
+.flow .codepeek .s { color: var(--p4); }
+.flow .codepeek .c { color: var(--dim); }
+
+/* -----------------------------------------------------------
+   PKCE LAB
+   ----------------------------------------------------------- */
+.lab {
+  margin-top: 30px;
+  display: grid; gap: 18px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 800px) { .lab { grid-template-columns: 1fr; } }
+.lab .panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.lab label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.lab .field {
+  margin-top: 8px; margin-bottom: 18px;
+  padding: 14px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  word-break: break-all;
+  color: var(--p3);
+  min-height: 48px;
+  position: relative;
+}
+.lab .field .empty { color: var(--dim); font-style: italic; }
+.lab .field button.copy {
+  position: absolute; right: 8px; top: 8px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.lab .field button.copy:hover { color: var(--text); }
+.lab .panel h3 { margin-top: 0; }
+.lab .arrow-down { text-align: center; color: var(--muted); margin: -6px 0 6px; }
+
+/* -----------------------------------------------------------
+   JWT DECODER
+   ----------------------------------------------------------- */
+.jwt {
+  margin-top: 30px;
+  display: grid; gap: 18px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 900px) { .jwt { grid-template-columns: 1fr; } }
+.jwt textarea {
+  width: 100%; min-height: 220px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+}
+.jwt textarea:focus { border-color: var(--p1); }
+.jwt .decoded {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-height: 220px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  overflow: auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.jwt .decoded h5 {
+  margin: 0; font-family: var(--sans); font-size: 12px;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;
+}
+.jwt .decoded pre {
+  margin: 4px 0 0; white-space: pre-wrap; word-break: break-all;
+  color: var(--text);
+}
+.jwt-token-color .h { color: var(--p2); }
+.jwt-token-color .p { color: var(--p1); }
+.jwt-token-color .s { color: var(--p3); }
+.jwt .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.jwt .samples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.jwt .samples button { padding: 6px 10px; font-size: 12px; }
+
+/* -----------------------------------------------------------
+   ENDPOINTS / DISCOVERY
+   ----------------------------------------------------------- */
+.endpoints {
+  margin-top: 30px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  overflow: hidden;
+}
+.endpoints table { width: 100%; border-collapse: collapse; }
+.endpoints th, .endpoints td {
+  text-align: left;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.endpoints tr:last-child td { border-bottom: none; }
+.endpoints th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); background: rgba(0,0,0,0.2); }
+.endpoints td.path { font-family: var(--mono); font-size: 13px; color: var(--p3); }
+.endpoints td.method { font-family: var(--mono); font-size: 12px; }
+.endpoints td.method .m {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  font-weight: 600;
+}
+.endpoints .m.GET { background: rgba(56,189,248,0.15); color: var(--p3); }
+.endpoints .m.POST { background: rgba(74,222,128,0.15); color: var(--p4); }
+.endpoints .req { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+
+.discovery {
+  margin-top: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.discovery .url {
+  font-family: var(--mono); font-size: 13px;
+  color: var(--p3);
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+
+/* -----------------------------------------------------------
+   SCOPES
+   ----------------------------------------------------------- */
+.scopes-wrap { margin-top: 24px; }
+.scopes-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.spill {
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-family: var(--mono); font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.spill.on {
+  background: var(--grad);
+  color: white;
+  border-color: transparent;
+}
+.scope-preview {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  font-family: var(--mono); font-size: 12.5px;
+  color: var(--text);
+  word-break: break-all;
+}
+.scope-preview .k { color: var(--p3); }
+.scope-preview .s { color: var(--p4); }
+.scope-explain { font-size: 14px; color: var(--muted); margin-top: 12px; }
+
+/* -----------------------------------------------------------
+   SECURITY
+   ----------------------------------------------------------- */
+.security { margin-top: 24px; }
+.gotcha {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--p6);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 12px;
+}
+.gotcha h4 { margin: 0 0 6px; font-size: 16px; }
+.gotcha h4 .badge {
+  display: inline-block; margin-right: 8px;
+  padding: 2px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 700;
+  background: rgba(248,113,113,0.15); color: var(--p6);
+  vertical-align: middle;
+}
+.gotcha p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.gotcha .fix {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(74, 222, 128, 0.08);
+  border-left: 3px solid var(--p4);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.gotcha .fix b { color: var(--p4); }
+
+/* -----------------------------------------------------------
+   COMPARE TABLE (OAuth vs OIDC vs SAML)
+   ----------------------------------------------------------- */
+.compare {
+  margin-top: 24px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.compare table { width: 100%; border-collapse: collapse; }
+.compare th, .compare td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.compare th { font-size: 13px; color: var(--muted); background: rgba(0,0,0,0.2); text-transform: uppercase; letter-spacing: 0.08em; }
+.compare tr:last-child td { border-bottom: none; }
+.compare td:first-child { font-weight: 600; color: var(--text); width: 24%; }
+
+/* -----------------------------------------------------------
+   QUIZ
+   ----------------------------------------------------------- */
+.quiz {
+  margin-top: 30px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+}
+.quiz .progress-line {
+  height: 4px; background: var(--panel-strong); border-radius: 999px;
+  margin-bottom: 24px; overflow: hidden;
+}
+.quiz .progress-line .fill {
+  height: 100%; background: var(--grad);
+  width: 0%; transition: width .3s ease;
+}
+.quiz .q-header { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+.quiz .q-text { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+.quiz .q-options { display: grid; gap: 10px; }
+.quiz .opt {
+  padding: 14px 18px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  transition: all .15s ease;
+}
+.quiz .opt:hover:not(:disabled) { border-color: var(--p1); background: rgba(167,139,250,0.05); }
+.quiz .opt.correct { background: rgba(74,222,128,0.12); border-color: var(--p4); color: var(--p4); }
+.quiz .opt.wrong { background: rgba(248,113,113,0.12); border-color: var(--p6); color: var(--p6); }
+.quiz .opt:disabled { cursor: default; }
+.quiz .explain {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(56,189,248,0.07);
+  border-left: 3px solid var(--p3);
+  border-radius: 8px;
+  font-size: 14px; color: var(--text);
+  display: none;
+}
+.quiz .explain.show { display: block; animation: slideUp .25s ease; }
+.quiz .nav {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 24px;
+}
+.quiz .score-display {
+  text-align: center; padding: 24px;
+}
+.quiz .score-display .score {
+  font-size: 64px; font-weight: 800;
+  background: var(--grad);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+}
+.quiz .score-display .out-of { color: var(--muted); margin-top: 6px; }
+.quiz .score-display .grade { font-size: 18px; margin: 14px 0; }
+
+/* -----------------------------------------------------------
+   GLOSSARY
+   ----------------------------------------------------------- */
+.glossary { margin-top: 24px; }
+.glossary .term {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 10px;
+}
+.glossary .term dt {
+  font-weight: 600; font-size: 15px;
+  display: flex; align-items: center; gap: 10px;
+}
+.glossary .term dt .acro {
+  font-family: var(--mono); font-size: 11px;
+  background: var(--panel-strong);
+  padding: 2px 8px; border-radius: 6px;
+  color: var(--p3);
+}
+.glossary .term dd {
+  margin: 8px 0 0; color: var(--muted); font-size: 14px;
+}
+
+/* -----------------------------------------------------------
+   FOOTER
+   ----------------------------------------------------------- */
+footer {
+  border-top: 1px solid var(--border);
+  margin-top: 80px;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+footer .wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding: 0 24px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 14px;
+}
+
+/* -----------------------------------------------------------
+   MISC
+   ----------------------------------------------------------- */
+code, pre {
+  font-family: var(--mono);
+}
+code.inline {
+  background: var(--panel-strong);
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 0.92em;
+  color: var(--p3);
+  border: 1px solid var(--border);
+}
+.kbd {
+  background: var(--panel-strong);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.muted { color: var(--muted); }
+.tooltip {
+  position: relative;
+  border-bottom: 1px dotted var(--p1);
+  cursor: help;
+}
+.tooltip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px; color: var(--text);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.spacer-sm { height: 8px; }
+.spacer { height: 16px; }
+.spacer-lg { height: 32px; }
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 18px 0;
+}
+.tag {
+  display: inline-block; padding: 3px 9px;
+  border-radius: 6px; font-size: 11px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-right: 6px;
+}
+.tag.ok { background: rgba(74,222,128,0.12); color: var(--p4); border-color: rgba(74,222,128,0.25); }
+.tag.warn { background: rgba(251,191,36,0.12); color: var(--p5); border-color: rgba(251,191,36,0.25); }
+.tag.danger { background: rgba(248,113,113,0.12); color: var(--p6); border-color: rgba(248,113,113,0.25); }
+.tag.info { background: rgba(56,189,248,0.12); color: var(--p3); border-color: rgba(56,189,248,0.25); }
+
+@media (max-width: 700px) {
+  .flow .actors { grid-template-columns: repeat(2, 1fr); }
+  nav.top .links a { font-size: 12px; padding: 6px 8px; }
+  section { padding: 80px 0 30px; }
+  .hero { padding: 80px 0 60px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="dot"></span>
+      <span class="name">OAuth Explorer</span>
+      <span class="tag muted">v2.1</span>
+    </a>
+    <div class="links">
+      <a href="#why">Why</a>
+      <a href="#roles">Roles</a>
+      <a href="#picker">Pick a flow</a>
+      <a href="#flow">Auth code</a>
+      <a href="#pkce">PKCE lab</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#endpoints">Endpoints</a>
+      <a href="#scopes">Scopes</a>
+      <a href="#security">Security</a>
+      <a href="#oidc">vs OIDC</a>
+      <a href="#quiz">Quiz</a>
+      <a href="#glossary">Glossary</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="container">
+    <span class="eyebrow">An interactive crash course</span>
+    <h1>OAuth, decoded.<br><span class="grad-text">In one scroll<span class="blink">_</span></span></h1>
+    <p class="lead">
+      Animated flows, a live PKCE generator, a real JWT decoder, and a quiz at the end.
+      By the time you hit the bottom, you'll talk OAuth like you wrote the RFC.
+    </p>
+    <div class="cta">
+      <a href="#why" class="btn primary">Start learning <span>&rarr;</span></a>
+      <a href="#quiz" class="btn ghost">Jump to the quiz</a>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <b>4</b><span>roles in every OAuth dance</span>
+      </div>
+      <div class="stat">
+        <b>1</b><span>flow you actually need (auth code + PKCE)</span>
+      </div>
+      <div class="stat">
+        <b>2005</b><span>year OAuth was born at Twitter/Magnolia</span>
+      </div>
+      <div class="stat">
+        <b>OAuth 2.1</b><span>the consolidation you should target today</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     WHY OAUTH
+     ============================================================ -->
+<section id="why">
+  <div class="container">
+    <span class="eyebrow">Chapter 01 — The problem</span>
+    <h2>Why we needed OAuth in the first place</h2>
+    <p class="lead">
+      Before OAuth, if a third-party app wanted to read your Gmail or post to your Twitter,
+      you had to <strong>give it your password</strong>. That meant any random calendar
+      integration could now log in as you, change your password, and read your DMs forever.
+      That is the era OAuth ended.
+    </p>
+
+    <div class="beforeafter">
+      <div class="panel bad">
+        <h4>Before OAuth — "the password antipattern"</h4>
+        <ul>
+          <li>App stores your real password (often in plaintext).</li>
+          <li>App has <em>full</em> access to your account, not just what it needs.</li>
+          <li>You can't revoke access without changing your password everywhere.</li>
+          <li>2FA? Forget it — the app can't replay your TOTP.</li>
+          <li>If the app gets breached, attackers get your password for every site you reused it on.</li>
+        </ul>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="panel good">
+        <h4>After OAuth — "delegated authorization"</h4>
+        <ul>
+          <li>App never sees your password — you log in at the real provider.</li>
+          <li>You grant <strong>specific scopes</strong> (e.g. <code class="inline">read:email</code>) — nothing more.</li>
+          <li>You can <strong>revoke the app's access</strong> any time, password unchanged.</li>
+          <li>2FA happens at the provider, where it belongs.</li>
+          <li>If the app is breached, attackers get a short-lived token — not your whole identity.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ROLES
+     ============================================================ -->
+<section id="roles">
+  <div class="container">
+    <span class="eyebrow">Chapter 02 — Cast of characters</span>
+    <h2>The four roles in every OAuth flow</h2>
+    <p class="lead">
+      Every OAuth conversation has exactly four players. Memorize these and the rest of
+      OAuth snaps into focus.
+    </p>
+
+    <div class="roles">
+      <div class="role" style="--accent: linear-gradient(135deg, var(--p3), var(--p1));">
+        <div class="label">Role 1</div>
+        <h3>Resource Owner</h3>
+        <div class="alias">a.k.a. you, the user, the human</div>
+        <div class="desc">The person who owns the data and gets to decide what apps can touch it.</div>
+        <div class="example"><b>Example:</b> You logging into a Stripe dashboard.</div>
+      </div>
+      <div class="role" style="--accent: linear-gradient(135deg, var(--p1), var(--p2));">
+        <div class="label">Role 2</div>
+        <h3>Client</h3>
+        <div class="alias">a.k.a. the app asking for access</div>
+        <div class="desc">A web app, mobile app, SPA, CLI, or service that wants to act on the user's behalf.</div>
+        <div class="example"><b>Example:</b> A Notion integration that wants to read your Google Calendar.</div>
+      </div>
+      <div class="role" style="--accent: linear-gradient(135deg, var(--p2), var(--p5));">
+        <div class="label">Role 3</div>
+        <h3>Authorization Server</h3>
+        <div class="alias">a.k.a. the "Sign in with…" page</div>
+        <div class="desc">Authenticates the user, asks for consent, and issues access tokens. Often a service like Auth0, Cognito, or Better Auth.</div>
+        <div class="example"><b>Example:</b> <code class="inline">accounts.google.com</code></div>
+      </div>
+      <div class="role" style="--accent: linear-gradient(135deg, var(--p5), var(--p6));">
+        <div class="label">Role 4</div>
+        <h3>Resource Server</h3>
+        <div class="alias">a.k.a. the API</div>
+        <div class="desc">The API that hosts the protected data and accepts tokens in the <code class="inline">Authorization: Bearer</code> header.</div>
+        <div class="example"><b>Example:</b> <code class="inline">www.googleapis.com/calendar/v3</code></div>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+    <p class="muted" style="font-size: 14px;">
+      <strong>Fun fact:</strong> the Authorization Server and the Resource Server can be the same machine —
+      they're <em>roles</em>, not necessarily separate servers. At Google they're different teams; at a small startup
+      they may live in the same Express app.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     FLOW PICKER
+     ============================================================ -->
+<section id="picker">
+  <div class="container">
+    <span class="eyebrow">Chapter 03 — Choose your weapon</span>
+    <h2>Which OAuth flow should I use?</h2>
+    <p class="lead">
+      OAuth 2 has several "grant types" (a.k.a. flows). Most of them are obsolete in 2026.
+      Answer the questions below — we'll tell you which one you actually need.
+    </p>
+
+    <div class="picker" id="pickerWidget">
+      <div class="question" data-q="1">
+        <div class="q-label">Question 1</div>
+        <div class="q-text">Is there a human user involved?</div>
+        <div class="choices">
+          <button class="choice" data-val="user">Yes, a real person logs in</button>
+          <button class="choice" data-val="machine">No, server talks to server</button>
+        </div>
+      </div>
+
+      <div class="question" data-q="2" style="display:none;">
+        <div class="q-label">Question 2</div>
+        <div class="q-text">Does the client have a browser <em>and</em> a keyboard?</div>
+        <div class="choices">
+          <button class="choice" data-val="browser">Yes — browser app, mobile, desktop</button>
+          <button class="choice" data-val="constrained">No — Apple TV, Roku, CLI, smart speaker</button>
+        </div>
+      </div>
+
+      <div class="result" id="pickerResult">
+        <div class="pill" id="resultPill"></div>
+        <h4 id="resultName"></h4>
+        <p id="resultDesc" style="color: var(--muted);"></p>
+        <div class="divider"></div>
+        <div id="resultDetails"></div>
+        <div class="spacer"></div>
+        <button class="btn ghost small" id="pickerReset">Start over</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     AUTH CODE FLOW WITH PKCE
+     ============================================================ -->
+<section id="flow">
+  <div class="container">
+    <span class="eyebrow">Chapter 04 — The main event</span>
+    <h2>Authorization Code flow, step by step</h2>
+    <p class="lead">
+      This is the flow you'll use 95% of the time. The animation below walks through every
+      hop. Click <strong>Next step</strong> to advance — watch the messages move between the four roles.
+    </p>
+
+    <div class="flow" id="flowWidget">
+      <div class="actors">
+        <div class="actor"><b>Resource<br>Owner</b>You</div>
+        <div class="actor"><b>Client</b>Your app</div>
+        <div class="actor"><b>Authorization<br>Server</b>Google/Auth0</div>
+        <div class="actor"><b>Resource<br>Server</b>The API</div>
+      </div>
+
+      <div class="steps" id="flowSteps">
+        <!-- populated by JS -->
+      </div>
+
+      <div class="controls">
+        <button class="btn ghost small" id="flowPrev">&larr; Prev</button>
+        <div class="progress"><div class="bar" id="flowBar"></div></div>
+        <button class="btn primary small" id="flowNext">Next step &rarr;</button>
+        <button class="btn ghost small" id="flowReset">Restart</button>
+      </div>
+
+      <div class="codepeek" id="flowCode"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PKCE LAB
+     ============================================================ -->
+<section id="pkce">
+  <div class="container">
+    <span class="eyebrow">Chapter 05 — PKCE, the lock and key</span>
+    <h2>Try PKCE live — your browser, real crypto</h2>
+    <p class="lead">
+      <strong>PKCE</strong> ("pixy" — Proof Key for Code Exchange) stops attackers who steal the
+      authorization code from being able to redeem it. Your client invents a secret
+      (<code class="inline">code_verifier</code>), hashes it (<code class="inline">code_challenge</code>),
+      sends the hash up-front, and reveals the original secret only at token exchange.
+      No verifier? No token.
+    </p>
+    <p class="lead">
+      <strong>This panel runs the same SubtleCrypto SHA-256 your real client would.</strong>
+      Hit generate and watch.
+    </p>
+
+    <div class="lab">
+      <div class="panel">
+        <h3 style="margin-top:0;">Step 1 — Client generates a verifier</h3>
+        <label>code_verifier <span class="muted">— random 43–128 chars, base64url</span></label>
+        <div class="field" id="verifierField"><span class="empty">Click Generate to mint a fresh one</span></div>
+
+        <label>code_challenge <span class="muted">— BASE64URL(SHA-256(verifier))</span></label>
+        <div class="field" id="challengeField"><span class="empty">…</span></div>
+
+        <label>code_challenge_method</label>
+        <div class="field"><code style="color: var(--p4)">S256</code> <span class="muted">(don't use "plain")</span></div>
+
+        <button class="btn primary" id="pkceGen">Generate new PKCE pair</button>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0;">Step 2 — What gets sent where</h3>
+        <label>To <code style="color:var(--p3)">/authorize</code> (front-channel, in the URL)</label>
+        <div class="field"><code><span style="color:var(--p3)">code_challenge</span>=<span id="cReq" style="color:var(--p4)">—</span><br>
+          <span style="color:var(--p3)">code_challenge_method</span>=<span style="color:var(--p4)">S256</span></code></div>
+
+        <div class="arrow-down">&darr; user logs in, code comes back &darr;</div>
+
+        <label>To <code style="color:var(--p3)">/token</code> (back-channel, POST body)</label>
+        <div class="field"><code><span style="color:var(--p3)">code</span>=<span style="color:var(--p4)">authorization_code_here</span><br>
+          <span style="color:var(--p3)">code_verifier</span>=<span id="vReq" style="color:var(--p4)">—</span></code></div>
+
+        <p class="muted" style="font-size: 13px; margin-top: 14px;">
+          Server hashes the verifier with SHA-256, base64url-encodes it, and compares to the
+          challenge it stored at <code class="inline">/authorize</code>. Match &rarr; tokens. Mismatch &rarr; reject.
+        </p>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+    <div class="card">
+      <h3><span class="icon">!</span> Why PKCE matters even for confidential clients</h3>
+      <p class="muted">
+        Originally PKCE was designed for "public" clients (mobile/SPA) that can't keep a
+        secret. But in <strong>OAuth 2.1</strong> it's mandatory <em>for everyone</em>, because the
+        authorization code can leak through browser history, server logs, or referer
+        headers. PKCE makes a stolen code worthless without the verifier — which never
+        leaves the client's memory.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     TOKENS
+     ============================================================ -->
+<section id="tokens">
+  <div class="container">
+    <span class="eyebrow">Chapter 06 — Tokens, three flavors</span>
+    <h2>Access, Refresh, ID — which is which?</h2>
+
+    <div class="grid-3" style="margin-top: 30px;">
+      <div class="card">
+        <h3><span class="icon" style="background: var(--grad-cool);">A</span> Access Token</h3>
+        <p>Short-lived (minutes to an hour). Presented to the <strong>Resource Server</strong> in the
+          <code class="inline">Authorization: Bearer …</code> header to call APIs.</p>
+        <div class="spacer-sm"></div>
+        <span class="tag info">opaque or JWT</span>
+        <span class="tag warn">treat like a password</span>
+      </div>
+      <div class="card">
+        <h3><span class="icon" style="background: var(--grad-warm);">R</span> Refresh Token</h3>
+        <p>Long-lived (days to months). Sent only to the <strong>Authorization Server's</strong>
+          <code class="inline">/token</code> endpoint to mint a new access token without re-prompting the user.</p>
+        <div class="spacer-sm"></div>
+        <span class="tag info">rotate on every use</span>
+        <span class="tag danger">never expose to JS</span>
+      </div>
+      <div class="card">
+        <h3><span class="icon" style="background: linear-gradient(135deg, var(--p4), var(--p3));">I</span> ID Token</h3>
+        <p>OIDC only. A signed <strong>JWT about the user</strong> (their <code class="inline">sub</code>,
+          email, name). Lets the client say "I know who logged in" without calling an API.</p>
+        <div class="spacer-sm"></div>
+        <span class="tag info">always a JWT</span>
+        <span class="tag ok">verify the signature!</span>
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+    <h3>Decode a JWT yourself</h3>
+    <p class="muted">
+      Most ID tokens and many access tokens are JWTs — three base64url chunks separated by dots.
+      Paste one below (or try a sample) to see the header, payload, and signature.
+      <strong>Nothing leaves your browser.</strong>
+    </p>
+
+    <div class="jwt">
+      <div>
+        <textarea id="jwtIn" spellcheck="false" placeholder="Paste a JWT here…"></textarea>
+        <div class="samples">
+          <button class="btn ghost small" data-sample="oidc">Sample OIDC ID token</button>
+          <button class="btn ghost small" data-sample="access">Sample access token</button>
+          <button class="btn ghost small" id="jwtClear">Clear</button>
+        </div>
+      </div>
+      <div class="decoded" id="jwtOut">
+        <div>
+          <h5>Header</h5>
+          <pre id="jwtHeader" class="jwt-token-color"><span class="muted">—</span></pre>
+        </div>
+        <div>
+          <h5>Payload</h5>
+          <pre id="jwtPayload" class="jwt-token-color"><span class="muted">—</span></pre>
+        </div>
+        <div>
+          <h5>Signature <span class="muted" style="font-weight:400;">(not verified here — needs the issuer's public key)</span></h5>
+          <pre id="jwtSig" class="jwt-token-color"><span class="muted">—</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ENDPOINTS + DISCOVERY
+     ============================================================ -->
+<section id="endpoints">
+  <div class="container">
+    <span class="eyebrow">Chapter 07 — The standard endpoints</span>
+    <h2>The well-known URLs you'll see everywhere</h2>
+    <p class="lead">
+      Authorization servers expose a small, standardized set of endpoints. Once you know
+      their names, every provider — Google, GitHub, Auth0, Cognito, your homegrown one — looks
+      the same.
+    </p>
+
+    <div class="endpoints">
+      <table>
+        <thead>
+          <tr><th>Endpoint</th><th>Method</th><th>Purpose</th><th>Required params</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="path">/authorize</td>
+            <td class="method"><span class="m GET">GET</span></td>
+            <td>Front-channel. Browser redirect that authenticates the user and asks consent.</td>
+            <td class="req">response_type, client_id, redirect_uri, scope, state, code_challenge</td>
+          </tr>
+          <tr>
+            <td class="path">/token</td>
+            <td class="method"><span class="m POST">POST</span></td>
+            <td>Back-channel. Exchanges an authorization code (or refresh token) for tokens.</td>
+            <td class="req">grant_type, code, redirect_uri, client_id, code_verifier</td>
+          </tr>
+          <tr>
+            <td class="path">/revoke</td>
+            <td class="method"><span class="m POST">POST</span></td>
+            <td>Revoke an access or refresh token before its natural expiry. <span class="tag info">RFC 7009</span></td>
+            <td class="req">token, token_type_hint</td>
+          </tr>
+          <tr>
+            <td class="path">/introspect</td>
+            <td class="method"><span class="m POST">POST</span></td>
+            <td>Resource server asks "is this token still valid and what does it grant?" <span class="tag info">RFC 7662</span></td>
+            <td class="req">token (+ client auth)</td>
+          </tr>
+          <tr>
+            <td class="path">/userinfo</td>
+            <td class="method"><span class="m GET">GET</span></td>
+            <td>OIDC. Returns claims about the authenticated user.</td>
+            <td class="req">Authorization: Bearer &lt;access_token&gt;</td>
+          </tr>
+          <tr>
+            <td class="path">/device_authorization</td>
+            <td class="method"><span class="m POST">POST</span></td>
+            <td>Device flow. Returns a user code + verification URL for "enter this code on your phone". <span class="tag info">RFC 8628</span></td>
+            <td class="req">client_id, scope</td>
+          </tr>
+          <tr>
+            <td class="path">/.well-known/openid-configuration</td>
+            <td class="method"><span class="m GET">GET</span></td>
+            <td>OIDC <strong>discovery</strong> document. JSON listing every other endpoint, supported scopes, and JWKS URL.</td>
+            <td class="req">—</td>
+          </tr>
+          <tr>
+            <td class="path">/.well-known/oauth-authorization-server</td>
+            <td class="method"><span class="m GET">GET</span></td>
+            <td>Pure OAuth 2 discovery (OIDC's sibling). <span class="tag info">RFC 8414</span></td>
+            <td class="req">—</td>
+          </tr>
+          <tr>
+            <td class="path">/.well-known/jwks.json</td>
+            <td class="method"><span class="m GET">GET</span></td>
+            <td>Public keys used to verify JWT signatures.</td>
+            <td class="req">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="discovery">
+      <h3 style="margin-top:0;">Discovery in action</h3>
+      <p class="muted">
+        Every OIDC provider exposes this magic URL. Fetch it once, cache the JSON,
+        and you never have to hardcode endpoint paths again.
+      </p>
+      <div class="url">https://accounts.google.com/.well-known/openid-configuration</div>
+      <pre style="background:rgba(0,0,0,0.4); padding:18px; border-radius:12px; font-size:12.5px; overflow:auto; margin:0;">
+{
+  <span style="color:var(--p3)">"issuer"</span>: <span style="color:var(--p4)">"https://accounts.google.com"</span>,
+  <span style="color:var(--p3)">"authorization_endpoint"</span>: <span style="color:var(--p4)">"https://accounts.google.com/o/oauth2/v2/auth"</span>,
+  <span style="color:var(--p3)">"token_endpoint"</span>:         <span style="color:var(--p4)">"https://oauth2.googleapis.com/token"</span>,
+  <span style="color:var(--p3)">"userinfo_endpoint"</span>:      <span style="color:var(--p4)">"https://openidconnect.googleapis.com/v1/userinfo"</span>,
+  <span style="color:var(--p3)">"jwks_uri"</span>:               <span style="color:var(--p4)">"https://www.googleapis.com/oauth2/v3/certs"</span>,
+  <span style="color:var(--p3)">"response_types_supported"</span>: [<span style="color:var(--p4)">"code"</span>, ...],
+  <span style="color:var(--p3)">"scopes_supported"</span>:         [<span style="color:var(--p4)">"openid"</span>, <span style="color:var(--p4)">"profile"</span>, <span style="color:var(--p4)">"email"</span>, ...],
+  <span style="color:var(--p3)">"code_challenge_methods_supported"</span>: [<span style="color:var(--p4)">"plain"</span>, <span style="color:var(--p4)">"S256"</span>]
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCOPES
+     ============================================================ -->
+<section id="scopes">
+  <div class="container">
+    <span class="eyebrow">Chapter 08 — Scopes & consent</span>
+    <h2>Scopes are how you say "only this much"</h2>
+    <p class="lead">
+      Scopes are space-separated permission strings the client requests at <code class="inline">/authorize</code>.
+      The user sees them on the consent screen ("This app wants to read your email and post on your behalf").
+      Pick scopes below and watch the request build.
+    </p>
+
+    <div class="scopes-wrap">
+      <div class="scopes-pills" id="scopePills">
+        <button class="spill" data-scope="openid">openid</button>
+        <button class="spill" data-scope="profile">profile</button>
+        <button class="spill" data-scope="email">email</button>
+        <button class="spill" data-scope="offline_access">offline_access</button>
+        <button class="spill" data-scope="read:repo">read:repo</button>
+        <button class="spill" data-scope="write:repo">write:repo</button>
+        <button class="spill" data-scope="admin:org">admin:org</button>
+      </div>
+
+      <div class="scope-preview">
+        <code>GET <span class="k">https://auth.example.com/authorize</span>?
+  <span class="k">response_type</span>=<span class="s">code</span>&amp;
+  <span class="k">client_id</span>=<span class="s">demo-app</span>&amp;
+  <span class="k">redirect_uri</span>=<span class="s">https://app.example.com/cb</span>&amp;
+  <span class="k">scope</span>=<span class="s" id="scopeOut">openid</span>&amp;
+  <span class="k">state</span>=<span class="s">abc123</span>&amp;
+  <span class="k">code_challenge</span>=<span class="s">…</span>&amp;
+  <span class="k">code_challenge_method</span>=<span class="s">S256</span></code>
+      </div>
+
+      <div class="scope-explain" id="scopeExplain">
+        <strong>openid</strong> — required for OIDC. Tells the server "also give me an ID token".
+      </div>
+    </div>
+
+    <div class="spacer-lg"></div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Reserved OIDC scopes</h3>
+        <p>Standardized by OpenID Connect — every OIDC provider honors these.</p>
+        <ul>
+          <li><code class="inline">openid</code> — opt into OIDC, get an ID token</li>
+          <li><code class="inline">profile</code> — name, picture, locale, etc.</li>
+          <li><code class="inline">email</code> — email + verified flag</li>
+          <li><code class="inline">offline_access</code> — get a refresh token too</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Provider-specific scopes</h3>
+        <p>Anything beyond the OIDC core is a free-for-all the provider invents. Common conventions:</p>
+        <ul>
+          <li>GitHub: <code class="inline">repo</code>, <code class="inline">user:email</code>, <code class="inline">admin:org</code></li>
+          <li>Google: <code class="inline">https://www.googleapis.com/auth/calendar.readonly</code></li>
+          <li>Slack: <code class="inline">chat:write</code>, <code class="inline">channels:read</code></li>
+        </ul>
+        <p class="muted" style="font-size:13px;">There's no universal scope namespace. Read the provider's docs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECURITY
+     ============================================================ -->
+<section id="security">
+  <div class="container">
+    <span class="eyebrow">Chapter 09 — Don't get pwned</span>
+    <h2>The security gotchas (and how to dodge them)</h2>
+    <p class="lead">
+      Most OAuth bugs aren't in OAuth — they're in how people implement it.
+      Here are the classics that the OWASP and Auth0 security teams keep finding in the wild.
+    </p>
+
+    <div class="security">
+      <div class="gotcha">
+        <h4><span class="badge">CSRF</span>Missing or unchecked <code class="inline">state</code> parameter</h4>
+        <p>Without <code class="inline">state</code>, an attacker can trick a logged-in victim into completing
+          <em>their</em> OAuth flow — linking the attacker's social account to the victim's app account.</p>
+        <div class="fix"><b>Fix:</b> generate a random, unguessable <code class="inline">state</code>, store it in a cookie or session, and reject the callback if it doesn't match.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">REDIR</span>Loose redirect_uri matching</h4>
+        <p>Allowing wildcard or substring matches on <code class="inline">redirect_uri</code> lets attackers ship the auth code to <code class="inline">https://evil.com/?evil-callback</code>.</p>
+        <div class="fix"><b>Fix:</b> OAuth 2.1 requires <em>exact-string</em> match. Register every callback you intend to use, including localhost ports.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">LEAK</span>Auth code in browser history / referer</h4>
+        <p>The code lands in the URL, then sticks around in history, server logs, and any link the user clicks afterward.</p>
+        <div class="fix"><b>Fix:</b> use PKCE (now mandatory), expire codes &lt;60s, and burn them on first use.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">XSS</span>Storing tokens in localStorage</h4>
+        <p>Any XSS bug instantly exfiltrates every token. Refresh tokens in localStorage are the worst case — they're long-lived.</p>
+        <div class="fix"><b>Fix:</b> for browser apps prefer the <strong>BFF pattern</strong> (Backend-for-Frontend): tokens live in a HttpOnly cookie on your server, never in JS.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">MIX-UP</span>Token audience confusion</h4>
+        <p>Your API blindly trusts any JWT signed by Google — including ones minted for a totally different app.</p>
+        <div class="fix"><b>Fix:</b> always verify the <code class="inline">aud</code> (audience) and <code class="inline">iss</code> (issuer) claims on every JWT, not just the signature.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">ROT</span>Long-lived refresh tokens never rotated</h4>
+        <p>A leaked refresh token = persistent access for the attacker, forever.</p>
+        <div class="fix"><b>Fix:</b> rotate refresh tokens on every use; if you ever see a replay of an old one, revoke the whole family.</div>
+      </div>
+
+      <div class="gotcha">
+        <h4><span class="badge">FLOW</span>Using the Implicit or Password flow in 2026</h4>
+        <p>Both flows are removed in OAuth 2.1. Implicit puts tokens in URL fragments (logs, history). Password flow trains users that handing passwords to apps is normal.</p>
+        <div class="fix"><b>Fix:</b> Authorization Code + PKCE for everything user-facing. Client Credentials for machine-to-machine. Device flow for TVs.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     OAUTH VS OIDC VS SAML
+     ============================================================ -->
+<section id="oidc">
+  <div class="container">
+    <span class="eyebrow">Chapter 10 — Sibling protocols</span>
+    <h2>OAuth vs OIDC vs SAML — what's the difference?</h2>
+    <p class="lead">
+      The single most-asked OAuth question. Short version: OAuth is <em>authorization</em> (what the app can do).
+      OIDC and SAML are <em>authentication</em> (who the user is). OIDC is a thin layer <em>built on</em> OAuth.
+    </p>
+
+    <div class="compare">
+      <table>
+        <thead>
+          <tr><th></th><th>OAuth 2.0</th><th>OpenID Connect</th><th>SAML 2.0</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>What it answers</td><td>Can this app do X?</td><td>Who is logged in?</td><td>Who is logged in? (enterprise edition)</td></tr>
+          <tr><td>Format</td><td>JSON / form-encoded</td><td>JSON + JWT</td><td>XML, signed</td></tr>
+          <tr><td>Token</td><td>Access token (opaque or JWT)</td><td>Adds an ID Token (always JWT)</td><td>SAML Assertion (XML)</td></tr>
+          <tr><td>Where you see it</td><td>"Connect your GitHub" buttons</td><td>"Sign in with Google" buttons</td><td>Enterprise SSO (Okta, Azure AD)</td></tr>
+          <tr><td>Designed for</td><td>APIs, mobile, SPA</td><td>Web + native login</td><td>Browser-only, enterprise</td></tr>
+          <tr><td>Built on</td><td>—</td><td>OAuth 2</td><td>Independent (SOAP era)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="spacer-lg"></div>
+    <div class="card">
+      <h3><span class="icon" style="background: var(--grad-cool);">?</span> Common confusion: "Sign in with Google" uses OAuth, right?</h3>
+      <p class="muted">Sort of. It uses <strong>OpenID Connect</strong>, which is an authentication layer
+        built on top of OAuth 2's authorization code flow. The redirect dance is identical — but
+        the client also asks for the <code class="inline">openid</code> scope, gets back an
+        <strong>ID Token</strong> alongside the access token, and uses <em>that</em> to know who the user is.
+        Without OIDC, OAuth alone tells you nothing about the user — just that "the bearer of this token
+        is allowed to do X."</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     QUIZ
+     ============================================================ -->
+<section id="quiz">
+  <div class="container">
+    <span class="eyebrow">Final boss — Quiz time</span>
+    <h2>Prove it.</h2>
+    <p class="lead">
+      10 questions. No timer. Each one has an explanation so even when you miss one, you learn.
+    </p>
+
+    <div class="quiz" id="quizWidget">
+      <div class="progress-line"><div class="fill" id="quizFill"></div></div>
+      <div id="quizBody"></div>
+      <div class="nav">
+        <div class="muted" id="quizCounter">Question 1 of 10</div>
+        <button class="btn primary small" id="quizNext" disabled>Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     GLOSSARY
+     ============================================================ -->
+<section id="glossary">
+  <div class="container">
+    <span class="eyebrow">Cheat sheet</span>
+    <h2>OAuth glossary you can pin to your monitor</h2>
+
+    <dl class="glossary">
+      <div class="term"><dt>Authorization Code <span class="acro">code</span></dt><dd>A short-lived (typically &lt;60s) opaque string returned to the client's redirect URI. Useless on its own — must be exchanged at <code class="inline">/token</code>.</dd></div>
+      <div class="term"><dt>Access Token <span class="acro">AT</span></dt><dd>The credential a client presents to a resource server in the <code class="inline">Authorization: Bearer</code> header. Short-lived (minutes to ~1h).</dd></div>
+      <div class="term"><dt>Refresh Token <span class="acro">RT</span></dt><dd>Long-lived credential sent only to the authorization server to get fresh access tokens without re-prompting the user.</dd></div>
+      <div class="term"><dt>ID Token <span class="acro">IDT</span></dt><dd>OIDC-only JWT containing claims about the authenticated user. Tells the client <em>who</em> logged in.</dd></div>
+      <div class="term"><dt>PKCE <span class="acro">RFC 7636</span></dt><dd>Proof Key for Code Exchange. A SHA-256 hash dance that prevents auth-code interception attacks. Mandatory in OAuth 2.1.</dd></div>
+      <div class="term"><dt>State Parameter <span class="acro">state</span></dt><dd>Random per-request value the client sends to <code class="inline">/authorize</code> and verifies on the callback. CSRF defense.</dd></div>
+      <div class="term"><dt>Nonce <span class="acro">OIDC</span></dt><dd>Like <code class="inline">state</code> but for the ID Token. Sent at <code class="inline">/authorize</code>, echoed in the token's <code class="inline">nonce</code> claim. Prevents token replay.</dd></div>
+      <div class="term"><dt>Scope <span class="acro">scope</span></dt><dd>Space-separated permission string. What the user consents to and what the resulting token can access.</dd></div>
+      <div class="term"><dt>Front-channel</dt><dd>Communication that goes through the user's browser (URL redirects, fragments). Visible to JS, logged by browsers.</dd></div>
+      <div class="term"><dt>Back-channel</dt><dd>Server-to-server HTTPS POST. Not visible to the user or the browser. Where secrets and tokens belong.</dd></div>
+      <div class="term"><dt>JWKS <span class="acro">jwks_uri</span></dt><dd>JSON Web Key Set — the public keys you use to verify a JWT's signature. Fetched from the provider's discovery document.</dd></div>
+      <div class="term"><dt>Confidential vs Public client</dt><dd>Confidential = can keep a secret (server-side app). Public = cannot (SPA, mobile, CLI). Public clients must use PKCE; confidential ones authenticate with <code class="inline">client_secret</code> too.</dd></div>
+      <div class="term"><dt>BFF (Backend-for-Frontend)</dt><dd>Pattern where a small server-side proxy holds the tokens and issues only HttpOnly session cookies to the browser. Best practice for SPAs in 2026.</dd></div>
+      <div class="term"><dt>DCR <span class="acro">RFC 7591</span></dt><dd>Dynamic Client Registration. Lets clients register themselves with the authorization server at runtime. Used by MCP, IDE plugins, etc.</dd></div>
+    </dl>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Built as a learning tool. No tracking, no JS frameworks, no build step — just one HTML file you can read end-to-end.</div>
+    <div>Spec rabbit holes: <a href="https://datatracker.ietf.org/doc/html/rfc6749" target="_blank" rel="noopener">RFC 6749</a> · <a href="https://datatracker.ietf.org/doc/html/rfc7636" target="_blank" rel="noopener">RFC 7636 (PKCE)</a> · <a href="https://openid.net/specs/openid-connect-core-1_0.html" target="_blank" rel="noopener">OIDC Core</a> · <a href="https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1" target="_blank" rel="noopener">OAuth 2.1</a></div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   OAuth Explorer — JS (vanilla, zero deps)
+   ============================================================ */
+
+/* ---------- Scroll-spy nav highlight ---------- */
+(() => {
+  const links = document.querySelectorAll('nav.top .links a');
+  const sections = [...document.querySelectorAll('main section')];
+  const map = new Map();
+  links.forEach(a => map.set(a.getAttribute('href').slice(1), a));
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = map.get(en.target.id);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-40% 0px -55% 0px' });
+  sections.forEach(s => obs.observe(s));
+})();
+
+/* ---------- Flow picker (decision tree) ---------- */
+(() => {
+  const widget = document.getElementById('pickerWidget');
+  const q1 = widget.querySelector('[data-q="1"]');
+  const q2 = widget.querySelector('[data-q="2"]');
+  const result = document.getElementById('pickerResult');
+  const resetBtn = document.getElementById('pickerReset');
+
+  const flows = {
+    machine: {
+      pill: 'Machine-to-machine',
+      name: 'Client Credentials Grant',
+      desc: 'No human in the loop, server-to-server, both ends are trusted.',
+      details: `<p><strong>Use when:</strong> a cron job, microservice, or background worker calls an API on its own behalf — not on behalf of a user.</p>
+                <p><strong>How it works:</strong> client POSTs its <code class="inline">client_id</code> + <code class="inline">client_secret</code> to <code class="inline">/token</code> with <code class="inline">grant_type=client_credentials</code>, gets back an access token. That's it. No browser, no user.</p>`
+    },
+    constrained: {
+      pill: 'Constrained device',
+      name: 'Device Authorization Grant',
+      desc: 'No browser or keyboard — but a second device the user can use.',
+      details: `<p><strong>Use when:</strong> Apple TV, Roku, smart speaker, CLI ("press enter to open browser…").</p>
+                <p><strong>How it works:</strong> device hits <code class="inline">/device_authorization</code>, gets back a short <code class="inline">user_code</code> + URL. Tells the user "go to example.com/device and enter ABCD-1234". Meanwhile the device long-polls <code class="inline">/token</code> until the user finishes.</p>`
+    },
+    browser: {
+      pill: 'You almost always want this',
+      name: 'Authorization Code + PKCE',
+      desc: 'The default modern flow. Works for web apps, mobile, SPAs, desktop, CLIs that can pop a browser.',
+      details: `<p><strong>Use when:</strong> there's a real user, and the client can launch a browser. That's 95% of cases.</p>
+                <p><strong>How it works:</strong> client redirects the user to <code class="inline">/authorize</code> with a PKCE challenge, user logs in, browser bounces back with a <code class="inline">code</code>, client POSTs the code + verifier to <code class="inline">/token</code>, gets tokens. <span class="muted">Scroll down — we animate the whole thing in the next section.</span></p>`
+    }
+  };
+
+  let answers = {};
+
+  q1.querySelectorAll('.choice').forEach(b => b.addEventListener('click', () => {
+    q1.querySelectorAll('.choice').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    answers.q1 = b.dataset.val;
+    result.classList.remove('show');
+
+    if (answers.q1 === 'machine') {
+      q2.style.display = 'none';
+      showResult('machine');
+    } else {
+      q2.style.display = 'block';
+      q2.querySelectorAll('.choice').forEach(x => x.classList.remove('selected'));
+    }
+  }));
+
+  q2.querySelectorAll('.choice').forEach(b => b.addEventListener('click', () => {
+    q2.querySelectorAll('.choice').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    showResult(b.dataset.val);
+  }));
+
+  function showResult(key) {
+    const f = flows[key];
+    document.getElementById('resultPill').textContent = f.pill;
+    document.getElementById('resultName').textContent = f.name;
+    document.getElementById('resultDesc').textContent = f.desc;
+    document.getElementById('resultDetails').innerHTML = f.details;
+    result.classList.add('show');
+  }
+
+  resetBtn.addEventListener('click', () => {
+    q1.querySelectorAll('.choice').forEach(x => x.classList.remove('selected'));
+    q2.querySelectorAll('.choice').forEach(x => x.classList.remove('selected'));
+    q2.style.display = 'none';
+    result.classList.remove('show');
+    answers = {};
+  });
+})();
+
+/* ---------- Authorization Code + PKCE animated flow ---------- */
+(() => {
+  const steps = [
+    {
+      title: '1. Client generates PKCE pair',
+      who: 'Client',
+      desc: 'Mints a random code_verifier, hashes it with SHA-256, base64url-encodes the result → code_challenge.',
+      meta: 'code_verifier = random; code_challenge = BASE64URL(SHA256(verifier))',
+      arrow: 'in memory'
+    },
+    {
+      title: '2. Client redirects user to /authorize',
+      who: 'Client → Authorization Server',
+      desc: 'Browser navigates to the auth server with client_id, redirect_uri, scope, state, code_challenge.',
+      meta: 'GET /authorize?response_type=code&client_id=...&code_challenge=...&state=xyz',
+      arrow: '→ browser redirect'
+    },
+    {
+      title: '3. User authenticates + consents',
+      who: 'Resource Owner ↔ Authorization Server',
+      desc: 'User logs in (password, passkey, MFA), then sees the consent screen listing the requested scopes.',
+      meta: 'No data flows to the client during this step.',
+      arrow: 'human time'
+    },
+    {
+      title: '4. Auth server redirects back with code',
+      who: 'Authorization Server → Client',
+      desc: 'Browser is bounced to the registered redirect_uri carrying the authorization code and the original state.',
+      meta: 'GET https://app.example.com/cb?code=4/0AX4...&state=xyz',
+      arrow: '← browser redirect'
+    },
+    {
+      title: '5. Client exchanges code + verifier for tokens',
+      who: 'Client → Authorization Server',
+      desc: 'Back-channel POST to /token. Server hashes the verifier, compares to stored challenge, returns tokens on match.',
+      meta: 'POST /token  grant_type=authorization_code&code=...&code_verifier=...',
+      arrow: '→ HTTPS (server)'
+    },
+    {
+      title: '6. Auth server returns tokens',
+      who: 'Authorization Server → Client',
+      desc: 'JSON response with access_token, refresh_token, id_token (if OIDC), expires_in, scope.',
+      meta: '{ "access_token": "ya29.…", "refresh_token": "…", "expires_in": 3600 }',
+      arrow: '← JSON'
+    },
+    {
+      title: '7. Client calls the API with the access token',
+      who: 'Client → Resource Server',
+      desc: 'Every API request includes Authorization: Bearer <access_token>.',
+      meta: 'GET /api/me  Authorization: Bearer ya29.…',
+      arrow: '→ HTTPS'
+    },
+    {
+      title: '8. (Later) Refresh, when access token expires',
+      who: 'Client → Authorization Server',
+      desc: 'When the access token expires, POST the refresh_token to /token to mint a fresh one — no user prompt.',
+      meta: 'POST /token  grant_type=refresh_token&refresh_token=…',
+      arrow: '→ HTTPS (server)'
+    }
+  ];
+
+  const sampleResp = [
+    `<span class="c">// step 1 — invented in browser memory</span>
+<span class="k">code_verifier</span>  = <span class="s">"M25iVXpKU3puUjFaYWg3T1NDTDQtcW1ROUY5YXlwalNoc0hhakxifmZHag"</span>
+<span class="k">code_challenge</span> = <span class="s">"qjrzSW9gMiUgpUvqgEPE4_-8swvyCtfOVvg55o5S_es"</span>`,
+    `<span class="c">// step 2 — what the browser navigates to</span>
+GET https://auth.example.com/authorize?
+    <span class="k">response_type</span>=<span class="s">code</span>&
+    <span class="k">client_id</span>=<span class="s">my-app</span>&
+    <span class="k">redirect_uri</span>=<span class="s">https://app.example.com/cb</span>&
+    <span class="k">scope</span>=<span class="s">openid profile email</span>&
+    <span class="k">state</span>=<span class="s">xyzABC123</span>&
+    <span class="k">code_challenge</span>=<span class="s">qjrzSW9g…_es</span>&
+    <span class="k">code_challenge_method</span>=<span class="s">S256</span>`,
+    `<span class="c">// step 3 — happens entirely on the auth server's pages</span>
+<span class="c">// (login UI, MFA prompt, consent screen)</span>`,
+    `<span class="c">// step 4 — browser bounced back</span>
+GET https://app.example.com/cb?
+    <span class="k">code</span>=<span class="s">4/0AX4XfWj…</span>&
+    <span class="k">state</span>=<span class="s">xyzABC123</span>   <span class="c">// must match what we sent!</span>`,
+    `<span class="c">// step 5 — back-channel POST (server-to-server)</span>
+POST /token HTTP/1.1
+Host: auth.example.com
+Content-Type: application/x-www-form-urlencoded
+
+<span class="k">grant_type</span>=<span class="s">authorization_code</span>
+&<span class="k">code</span>=<span class="s">4/0AX4XfWj…</span>
+&<span class="k">redirect_uri</span>=<span class="s">https://app.example.com/cb</span>
+&<span class="k">client_id</span>=<span class="s">my-app</span>
+&<span class="k">code_verifier</span>=<span class="s">M25iVXp…ajLi~fGj</span>`,
+    `<span class="c">// step 6 — JSON response</span>
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  <span class="k">"access_token"</span>:  <span class="s">"ya29.A0ARrdaM_…"</span>,
+  <span class="k">"token_type"</span>:    <span class="s">"Bearer"</span>,
+  <span class="k">"expires_in"</span>:    <span class="s">3600</span>,
+  <span class="k">"refresh_token"</span>: <span class="s">"1//0gK4xLm…"</span>,
+  <span class="k">"id_token"</span>:      <span class="s">"eyJhbGciOiJSUzI1NiIs…"</span>,
+  <span class="k">"scope"</span>:         <span class="s">"openid profile email"</span>
+}`,
+    `<span class="c">// step 7 — calling the API</span>
+GET /api/me HTTP/1.1
+Host: api.example.com
+<span class="k">Authorization</span>: <span class="s">Bearer ya29.A0ARrdaM_…</span>
+
+<span class="c">// → 200 OK { "id": "u_123", "email": "you@example.com", ... }</span>`,
+    `<span class="c">// step 8 — refresh when access token expires</span>
+POST /token HTTP/1.1
+
+<span class="k">grant_type</span>=<span class="s">refresh_token</span>
+&<span class="k">refresh_token</span>=<span class="s">1//0gK4xLm…</span>
+&<span class="k">client_id</span>=<span class="s">my-app</span>
+
+<span class="c">// → fresh access_token (and usually a rotated refresh_token)</span>`
+  ];
+
+  const container = document.getElementById('flowSteps');
+  container.innerHTML = steps.map((s, i) => `
+    <div class="step" data-i="${i}">
+      <div class="num">${i + 1}</div>
+      <div>
+        <h4>${s.title}</h4>
+        <p>${s.desc}</p>
+        <div class="meta">${s.meta}</div>
+      </div>
+      <div class="arrow">${s.arrow}</div>
+    </div>
+  `).join('');
+
+  const stepEls = [...container.querySelectorAll('.step')];
+  const bar = document.getElementById('flowBar');
+  const code = document.getElementById('flowCode');
+  let idx = 0;
+
+  function render() {
+    stepEls.forEach((el, i) => el.classList.toggle('active', i === idx));
+    bar.style.width = `${((idx + 1) / steps.length) * 100}%`;
+    code.innerHTML = sampleResp[idx];
+    stepEls[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('flowNext').addEventListener('click', () => {
+    idx = Math.min(idx + 1, steps.length - 1);
+    render();
+  });
+  document.getElementById('flowPrev').addEventListener('click', () => {
+    idx = Math.max(idx - 1, 0);
+    render();
+  });
+  document.getElementById('flowReset').addEventListener('click', () => {
+    idx = 0;
+    render();
+  });
+  stepEls.forEach(el => el.addEventListener('click', () => {
+    idx = parseInt(el.dataset.i, 10);
+    render();
+  }));
+
+  render();
+})();
+
+/* ---------- PKCE Lab (real SubtleCrypto SHA-256) ---------- */
+(() => {
+  const verifierField = document.getElementById('verifierField');
+  const challengeField = document.getElementById('challengeField');
+  const cReq = document.getElementById('cReq');
+  const vReq = document.getElementById('vReq');
+
+  function base64url(buf) {
+    const b = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    return b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function randomVerifier(length = 64) {
+    const arr = new Uint8Array(length);
+    crypto.getRandomValues(arr);
+    return base64url(arr.buffer).slice(0, length);
+  }
+
+  async function sha256(str) {
+    const enc = new TextEncoder().encode(str);
+    return await crypto.subtle.digest('SHA-256', enc);
+  }
+
+  async function generate() {
+    const verifier = randomVerifier(64);
+    const challenge = base64url(await sha256(verifier));
+    verifierField.innerHTML = `${verifier}<button class="copy" data-copy="${verifier}">copy</button>`;
+    challengeField.innerHTML = `${challenge}<button class="copy" data-copy="${challenge}">copy</button>`;
+    cReq.textContent = challenge.length > 40 ? challenge.slice(0, 40) + '…' : challenge;
+    vReq.textContent = verifier.length > 40 ? verifier.slice(0, 40) + '…' : verifier;
+    wireCopy();
+  }
+
+  function wireCopy() {
+    document.querySelectorAll('button.copy').forEach(b => {
+      b.addEventListener('click', () => {
+        navigator.clipboard.writeText(b.dataset.copy).then(() => {
+          const orig = b.textContent;
+          b.textContent = 'copied!';
+          setTimeout(() => (b.textContent = orig), 1200);
+        });
+      });
+    });
+  }
+
+  document.getElementById('pkceGen').addEventListener('click', generate);
+})();
+
+/* ---------- JWT Decoder ---------- */
+(() => {
+  const input = document.getElementById('jwtIn');
+  const h = document.getElementById('jwtHeader');
+  const p = document.getElementById('jwtPayload');
+  const s = document.getElementById('jwtSig');
+
+  const samples = {
+    oidc: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImEzNmE2YjY2In0.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJzdWIiOiIxMTA1ODgwMzI1NzczMzcxMzI3MjkiLCJhenAiOiJteS1hcHAuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiJteS1hcHAuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJpYXQiOjE3MTYzMDAwMDAsImV4cCI6MTcxNjMwMzYwMCwiZW1haWwiOiJ5b3VAZXhhbXBsZS5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkV4YW1wbGUgVXNlciIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9kZWZhdWx0LXVzZXIifQ.fake-signature-for-demo-purposes-only-do-not-trust',
+    access: 'eyJhbGciOiJSUzI1NiIsInR5cCI6ImF0K2p3dCIsImtpZCI6IjEyMyJ9.eyJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJzdWIiOiJ1XzEyMyIsImF1ZCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tIiwiZXhwIjoxNzE2MzAzNjAwLCJpYXQiOjE3MTYzMDAwMDAsInNjb3BlIjoicmVhZDpyZXBvIHdyaXRlOnJlcG8iLCJjbGllbnRfaWQiOiJteS1hcHAifQ.fake-sig-do-not-trust'
+  };
+
+  function decodePart(part) {
+    try {
+      const padded = part.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = padded.length % 4 ? '='.repeat(4 - (padded.length % 4)) : '';
+      const json = atob(padded + pad);
+      return JSON.stringify(JSON.parse(json), null, 2);
+    } catch (e) { return null; }
+  }
+
+  function colorize(json) {
+    if (!json) return '';
+    return json
+      .replace(/("[^"]+")(:)/g, '<span class="p">$1</span>$2')
+      .replace(/: ("[^"]*")/g, ': <span class="s">$1</span>')
+      .replace(/: (true|false|null|\d+)/g, ': <span class="p">$1</span>');
+  }
+
+  function decode() {
+    const t = input.value.trim();
+    if (!t) {
+      h.innerHTML = '<span class="muted">—</span>';
+      p.innerHTML = '<span class="muted">—</span>';
+      s.innerHTML = '<span class="muted">—</span>';
+      return;
+    }
+    const parts = t.split('.');
+    if (parts.length < 2) {
+      h.innerHTML = '<span style="color:var(--p6);">Not a valid JWT — needs at least 2 dot-separated parts.</span>';
+      p.innerHTML = ''; s.innerHTML = '';
+      return;
+    }
+    const hd = decodePart(parts[0]);
+    const pd = decodePart(parts[1]);
+    h.innerHTML = hd ? colorize(hd) : '<span style="color:var(--p6);">Could not decode header</span>';
+    p.innerHTML = pd ? colorize(pd) : '<span style="color:var(--p6);">Could not decode payload</span>';
+    s.innerHTML = parts[2]
+      ? `<span class="muted" style="word-break:break-all;">${parts[2].slice(0, 80)}${parts[2].length > 80 ? '…' : ''}</span>`
+      : '<span class="muted">(no signature segment)</span>';
+  }
+
+  input.addEventListener('input', decode);
+  document.querySelectorAll('[data-sample]').forEach(b => {
+    b.addEventListener('click', () => {
+      input.value = samples[b.dataset.sample];
+      decode();
+    });
+  });
+  document.getElementById('jwtClear').addEventListener('click', () => {
+    input.value = '';
+    decode();
+  });
+
+  decode();
+})();
+
+/* ---------- Scope picker ---------- */
+(() => {
+  const scopeInfo = {
+    openid: 'Required for OIDC. Tells the server "also give me an ID token".',
+    profile: 'User\'s name, picture, locale, etc. — OIDC standard claims.',
+    email: 'User\'s email address and verified flag — OIDC standard claim.',
+    offline_access: 'Asks for a refresh token along with the access token.',
+    'read:repo': 'Provider-specific (GitHub-style): read repository contents.',
+    'write:repo': 'Provider-specific: push commits, open PRs.',
+    'admin:org': 'Provider-specific: dangerous! Manage org settings and members.'
+  };
+  const selected = new Set(['openid']);
+  const out = document.getElementById('scopeOut');
+  const explain = document.getElementById('scopeExplain');
+
+  function render() {
+    document.querySelectorAll('#scopePills .spill').forEach(el => {
+      el.classList.toggle('on', selected.has(el.dataset.scope));
+    });
+    out.textContent = [...selected].join(' ') || '(none — your request will probably fail)';
+    const last = [...selected].pop();
+    explain.innerHTML = last && scopeInfo[last]
+      ? `<strong>${last}</strong> — ${scopeInfo[last]}`
+      : '<em>Pick a scope above to see what it grants.</em>';
+  }
+
+  document.querySelectorAll('#scopePills .spill').forEach(el => {
+    el.addEventListener('click', () => {
+      const s = el.dataset.scope;
+      if (selected.has(s)) selected.delete(s);
+      else selected.add(s);
+      render();
+    });
+  });
+  render();
+})();
+
+/* ---------- Quiz ---------- */
+(() => {
+  const questions = [
+    {
+      q: 'Which OAuth role represents the human user?',
+      opts: ['Resource Server', 'Authorization Server', 'Resource Owner', 'Client'],
+      a: 2,
+      ex: 'The Resource Owner is the user — they "own" the protected resource (their data) and decide who gets to access it.'
+    },
+    {
+      q: 'What does PKCE stand for?',
+      opts: ['Public Key Cryptographic Exchange', 'Proof Key for Code Exchange', 'Persistent Key Challenge Encoding', 'Protected Client Encryption'],
+      a: 1,
+      ex: 'PKCE — Proof Key for Code Exchange (RFC 7636), pronounced "pixy". Mandatory in OAuth 2.1.'
+    },
+    {
+      q: 'What is the purpose of the `state` parameter on /authorize?',
+      opts: ['It identifies which user is logging in', 'It carries the redirect URL', 'It defends against CSRF on the callback', 'It encrypts the authorization code'],
+      a: 2,
+      ex: 'state is a random per-request value the client stores, sends to /authorize, and verifies on the callback. If they don\'t match, an attacker is trying to forge the callback.'
+    },
+    {
+      q: 'You\'re building an authentication system for an Apple TV app. Which flow do you use?',
+      opts: ['Authorization Code + PKCE', 'Implicit Grant', 'Device Authorization Grant', 'Resource Owner Password Credentials'],
+      a: 2,
+      ex: 'Device flow (RFC 8628) is designed for input-constrained devices: the TV displays a short code, the user types it on their phone, and the TV polls the token endpoint until done.'
+    },
+    {
+      q: 'What\'s the difference between an Access Token and an ID Token?',
+      opts: [
+        'They\'re the same thing under different names',
+        'Access Token is for APIs (what you can do); ID Token is OIDC-only and tells you who logged in',
+        'Access Token is long-lived; ID Token is short-lived',
+        'ID Token is for the user; Access Token is for the admin'
+      ],
+      a: 1,
+      ex: 'Access Tokens authorize API calls. ID Tokens are OIDC additions that contain authenticated user identity claims as a signed JWT.'
+    },
+    {
+      q: 'Why was the Implicit Grant flow deprecated?',
+      opts: [
+        'It used too much bandwidth',
+        'Tokens were returned in URL fragments where they leaked into logs and history',
+        'It required a backend the SPA didn\'t have',
+        'It was incompatible with HTTPS'
+      ],
+      a: 1,
+      ex: 'Implicit Grant put the access token directly in the redirect URL fragment — which then ended up in browser history, server logs, and any subsequent referer header. Auth Code + PKCE replaces it.'
+    },
+    {
+      q: 'How do you present an access token when calling an API?',
+      opts: [
+        'In a query string: ?access_token=...',
+        'In an HTTP header: Authorization: Bearer <token>',
+        'In a cookie named access_token',
+        'In the request body as form data'
+      ],
+      a: 1,
+      ex: 'RFC 6750 defines the Bearer token scheme. The header keeps the token out of URLs/logs and is the only universally accepted method.'
+    },
+    {
+      q: 'What URL do OIDC providers expose for discovery?',
+      opts: [
+        '/oauth/endpoints',
+        '/.well-known/openid-configuration',
+        '/api/v1/oauth/info',
+        '/oidc.json'
+      ],
+      a: 1,
+      ex: 'OIDC mandates /.well-known/openid-configuration. Pure OAuth 2 has a sibling at /.well-known/oauth-authorization-server (RFC 8414).'
+    },
+    {
+      q: 'A refresh token gets leaked. What\'s the best mitigation?',
+      opts: [
+        'Wait for it to expire — they\'re short-lived',
+        'Rotate refresh tokens on every use and revoke the entire token family if a stale one is replayed',
+        'Email the user to log out',
+        'Change your client_secret'
+      ],
+      a: 1,
+      ex: 'Refresh token rotation is the standard defense. When a stale refresh token is replayed, the server can detect the leak and invalidate the whole chain.'
+    },
+    {
+      q: 'In OAuth 2.1, which is true for ALL clients (not just public ones)?',
+      opts: [
+        'They must support the Implicit flow',
+        'They must use PKCE',
+        'They must store a client_secret in the browser',
+        'They must use HTTP cookies for tokens'
+      ],
+      a: 1,
+      ex: 'OAuth 2.1 makes PKCE mandatory for everyone. Implicit and Password grants are removed entirely; redirect URIs must be exact-string matched.'
+    }
+  ];
+
+  const widget = document.getElementById('quizWidget');
+  const body = document.getElementById('quizBody');
+  const fill = document.getElementById('quizFill');
+  const counter = document.getElementById('quizCounter');
+  const nextBtn = document.getElementById('quizNext');
+
+  let idx = 0;
+  let score = 0;
+  let answered = false;
+
+  function renderQ() {
+    answered = false;
+    nextBtn.disabled = true;
+    fill.style.width = `${(idx / questions.length) * 100}%`;
+    counter.textContent = `Question ${idx + 1} of ${questions.length}`;
+    const q = questions[idx];
+    body.innerHTML = `
+      <div class="q-header">Question ${idx + 1}</div>
+      <div class="q-text">${q.q}</div>
+      <div class="q-options">
+        ${q.opts.map((o, i) => `<button class="opt" data-i="${i}">${o}</button>`).join('')}
+      </div>
+      <div class="explain" id="quizExplain"></div>
+    `;
+    body.querySelectorAll('.opt').forEach(b => b.addEventListener('click', () => answer(parseInt(b.dataset.i, 10))));
+    nextBtn.textContent = idx === questions.length - 1 ? 'See score →' : 'Next →';
+  }
+
+  function answer(i) {
+    if (answered) return;
+    answered = true;
+    const q = questions[idx];
+    const buttons = body.querySelectorAll('.opt');
+    buttons.forEach((b, j) => {
+      b.disabled = true;
+      if (j === q.a) b.classList.add('correct');
+      else if (j === i) b.classList.add('wrong');
+    });
+    if (i === q.a) score++;
+    const ex = document.getElementById('quizExplain');
+    ex.innerHTML = `<strong>${i === q.a ? 'Correct.' : 'Not quite.'}</strong> ${q.ex}`;
+    ex.classList.add('show');
+    nextBtn.disabled = false;
+  }
+
+  function showScore() {
+    fill.style.width = '100%';
+    counter.textContent = 'Quiz complete';
+    nextBtn.style.display = 'none';
+    const pct = Math.round((score / questions.length) * 100);
+    let grade, blurb;
+    if (pct === 100) { grade = 'Flawless.'; blurb = 'You can teach this. Go contribute to the OAuth 2.1 draft.'; }
+    else if (pct >= 80) { grade = 'OAuth Pro.'; blurb = 'You can ship real production auth. Maybe re-skim the security section.'; }
+    else if (pct >= 60) { grade = 'On your way.'; blurb = 'Solid foundation — replay the flow animation and pin the glossary.'; }
+    else if (pct >= 40) { grade = 'Getting warmer.'; blurb = 'Scroll back up to Chapters 4 and 6 — they\'re where it clicks.'; }
+    else { grade = 'Worth another lap.'; blurb = 'Start from the top — focus on the four roles and the auth code flow.'; }
+
+    body.innerHTML = `
+      <div class="score-display">
+        <div class="score">${score}/${questions.length}</div>
+        <div class="out-of">${pct}%</div>
+        <div class="grade"><strong>${grade}</strong> ${blurb}</div>
+        <button class="btn primary" id="quizRestart">Try again</button>
+      </div>
+    `;
+    document.getElementById('quizRestart').addEventListener('click', () => {
+      idx = 0; score = 0; nextBtn.style.display = 'inline-flex';
+      renderQ();
+    });
+  }
+
+  nextBtn.addEventListener('click', () => {
+    if (idx < questions.length - 1) { idx++; renderQ(); }
+    else showScore();
+  });
+
+  renderQ();
+})();
+</script>
+
+</body>
+</html>
